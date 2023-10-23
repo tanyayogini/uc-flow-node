@@ -13,3 +13,7 @@
 7. Запустите Ngrok htpp на порту 9000. Сделайте его скриншот и добавьте в README.md
 
 Ответ:
+<img width="557" alt="Снимок экрана 2023-10-16 в 16 36 21" src="https://github.com/tanyayogini/uc-flow-node/assets/109861482/f0a10f37-34de-4334-aecf-597580a968b3">
+
+<img width="848" alt="Снимок экрана 2023-10-16 в 16 34 38" src="https://github.com/tanyayogini/uc-flow-node/assets/109861482/3de4f9b2-c9de-4963-b9f9-683a24a11bf6">
+
