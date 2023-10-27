@@ -1,47 +1,447 @@
 import ujson
+import requests
 from typing import List, Tuple
 
 from uc_flow_nodes.schemas import NodeRunContext
 from uc_flow_nodes.service import NodeService
 from uc_flow_nodes.views import info, execute
 from uc_flow_schemas import flow
-from uc_flow_schemas.flow import Property, CredentialProtocol, RunState
+from uc_flow_schemas.flow import Property, CredentialProtocol, RunState, DisplayOptions, OptionValue
 from uc_http_requester.requester import Request
+from node.credential_type import CredentialType
+from node.enums import NodeAction, Resource, Operation, Parameters
 
+URL_LOGIN = 'auth/login'
+URL_CUSTOMER = 'customer/index'
 
 
 class NodeType(flow.NodeType):
     id: str = '89490712-0453-44ac-bbf4-680ae7b26080'
     type: flow.NodeType.Type = flow.NodeType.Type.action
-    name: str = 'Sum_node'
-    displayName: str = 'Sum_node'
+    name: str = 'My_alfacrm'
+    displayName: str = 'my_alfacrm'
     icon: str = '<svg><text x="8" y="50" font-size="50">🤖</text></svg>'
-    description: str = 'Складывает 2 числа, данные в формате строки и числа'
+    description: str = ''
     properties: List[Property] = [
         Property(
-            displayName='Число в формате строки',
-            name='text_field',
-            type=Property.Type.STRING,
-            default = '0',
-            description='Принимает число в формате строки',
-            required=True,
+            displayName='Действие кубика',
+            name='node_action',
+            type=Property.Type.OPTIONS,
+            options=[
+                OptionValue(
+                    name='Авторизация',
+                    value=NodeAction.auth,
+                    description=''
+                ),
+                OptionValue(
+                    name='Получение данных',
+                    value=NodeAction.get_data,
+                    description=''
+                ),
+            ]
         ),
         Property(
-            displayName='Число',
-            name='number_field',
-            type=Property.Type.NUMBER,
-            default = 0,
-            description='Принимает число в числовом формате',
-            required=True
+            displayName='url',
+            name='hostname',
+            type=Property.Type.STRING,
+            default='',
+            displayOptions=DisplayOptions(
+                show={
+                    'node_action': [
+                        NodeAction.auth
+                    ],
+                },
+            ), 
         ),
-         Property(
-            displayName='Вернуть как число',
-            name='switch',
-            type=Property.Type.BOOLEAN,
-            description='Вернуть в формате строки или числа',
-            required=False,
-            default=False,
-        )
+        Property(
+            displayName='id филиала',
+            name='branch',
+            type=Property.Type.NUMBER,
+            default='',
+            displayOptions=DisplayOptions(
+                show={
+                    'node_action': [
+                        NodeAction.auth
+                    ],
+                },
+            ), 
+        ),
+        Property(
+            displayName='email',
+            name='email',
+            type=Property.Type.EMAIL,
+            default='',
+            displayOptions=DisplayOptions(
+                show={
+                    'node_action': [
+                        NodeAction.auth
+                    ],
+                },
+            ), 
+        ),
+        Property(
+            displayName='API key',
+            name='api_key',
+            type=Property.Type.STRING,
+            default='',
+            displayOptions=DisplayOptions(
+                show={
+                    'node_action': [
+                        NodeAction.auth
+                    ],
+                },
+            ), 
+        ),
+        Property(
+            displayName='auth_result',
+            name='auth_result',
+            type=Property.Type.JSON,
+            displayOptions=DisplayOptions(
+                show={
+                    'node_action': [
+                        NodeAction.get_data
+                    ],
+                },
+            ),     
+        ),
+        Property(
+            displayName='Resource',
+            name='resource',
+            type=Property.Type.OPTIONS,
+            options=[
+                OptionValue(
+                    name='Customer',
+                    value=Resource.customer,
+                    description='',
+                ),
+            ],
+            displayOptions=DisplayOptions(
+                show={
+                    'node_action': [
+                        NodeAction.get_data
+                    ],
+                },
+            ),      
+        ),
+        Property(
+            displayName='Operation',
+            name='operation',
+            type=Property.Type.OPTIONS,
+            options=[
+                OptionValue(
+                    name='index',
+                    value=Operation.index_,
+                    description='',
+                ),
+                OptionValue(
+                    name='create',
+                    value=Operation.create,
+                    description='',
+                ),
+                OptionValue(
+                    name='update',
+                    value=Operation.update,
+                    description='',
+                ),
+            ],
+            displayOptions=DisplayOptions(
+                show={
+                     'node_action': [
+                        NodeAction.get_data
+                    ],
+                    'resource': [
+                        Resource.customer
+                    ],
+                },
+            ),
+        ),
+        Property(
+            displayName='Parameters',
+            name='parameters',
+            type=Property.Type.COLLECTION,
+            default={},
+            displayOptions=DisplayOptions(
+                show={
+                     'node_action': [
+                        NodeAction.get_data
+                    ],
+                    'resource': [
+                        Resource.customer,
+                    ],
+                    'operation': [
+                        Operation.index_,
+                    ],
+                }
+            ),
+            options=[
+                Property(
+                    displayName='id',
+                    name=Parameters.id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id клиента',
+                ),
+                Property(
+                    displayName='id_study',
+                    name=Parameters.is_study,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='состояние клиента ( 0 - лид, 1 - клиент)',
+                ),
+                Property(
+                    displayName='study_status_id',
+                    name=Parameters.study_status_id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id статуса клиента',
+                ),
+                Property(
+                    displayName='name',
+                    name=Parameters.name,
+                    type=Property.Type.STRING,
+                    default='',
+                    description='имя клиента',
+                ),
+                Property(
+                    displayName='gender',
+                    name=Parameters.gender,
+                    type=Property.Type.STRING,
+                    default='',
+                    description='пол клиента',
+                ),
+                Property(
+                    displayName='age_from',
+                    name=Parameters.age_from,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='возраст клиента от',
+                ),
+                Property(
+                    displayName='age_to',
+                    name=Parameters.age_to,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='возраст клиента до',
+                ),
+                Property(
+                    displayName='phone',
+                    name=Parameters.phone,
+                    type=Property.Type.STRING,
+                    default='',
+                    description='контакты клиента',
+                ),
+                Property(
+                    displayName='legal_type',
+                    name=Parameters.legal_type,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='тип заказчика(1-физ лицо, 2-юр.лицо)',
+                ),
+                Property(
+                    displayName='legal_name',
+                    name=Parameters.legal_name,
+                    type=Property.Type.STRING,
+                    default='',
+                    description='имя заказчика',
+                ),
+                Property(
+                    displayName='company_id',
+                    name=Parameters.company_id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id юр лица',
+                ),
+                Property(
+                    displayName='lesson_count_from',
+                    name=Parameters.lesson_count_from,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='остаток уроков от',
+                ),
+                Property(
+                    displayName='lesson_count_to',
+                    name=Parameters.lesson_count_to,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='остаток уроков до',
+                ),
+                Property(
+                    displayName='balance_contract_from',
+                    name=Parameters.balance_contract_from,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='баланс договора от',
+                ),
+                Property(
+                    displayName='balance_contract_to',
+                    name=Parameters.balance_contract_to,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='баланс договора до',
+                ),
+                Property(
+                    displayName='balance_bonus_from',
+                    name=Parameters.balance_bonus_from,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='баланс бонусов от',
+                ),
+                Property(
+                    displayName='balance_bonus_to',
+                    name=Parameters.balance_bonus_to,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='баланс бонусов до',
+                ),
+                Property(
+                    displayName='removed',
+                    name=Parameters.removed,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='флаг архивности (2 - только архивные, 1 - активные и архивные, 0 – только активные)',
+                ),
+                Property(
+                    displayName='removed_from',
+                    name=Parameters.removed_from,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата отправки в архив от',
+                ),
+                Property(
+                    displayName='removed_to',
+                    name=Parameters.removed,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата отправки в архив',
+                ),
+                Property(
+                    displayName='level_id',
+                    name=Parameters.level_id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id уровня знаний',
+                ),
+                Property(
+                    displayName='assigned_id',
+                    name=Parameters.assigned_id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id ответственного менеджера',
+                ),
+                Property(
+                    displayName='employee_id',
+                    name=Parameters.employee_id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id ответственного педагога',
+                ),
+                Property(
+                    displayName='lead_source_id',
+                    name=Parameters.lead_source_id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id источника',
+                ),
+                Property(
+                    displayName='color',
+                    name=Parameters.color,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id цвета',
+                ),
+                Property(
+                    displayName='note',
+                    name=Parameters.note,
+                    type=Property.Type.STRING,
+                    default='',
+                    description='примечание',
+                ),
+                Property(
+                    displayName='date_from',
+                    name=Parameters.date_from,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата добавления от',
+                ),
+                Property(
+                    displayName='date_to',
+                    name=Parameters.date_to,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата добавления до',
+                ),
+                Property(
+                    displayName='next_lesson_date_from',
+                    name=Parameters.next_lesson_date_from,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата след.посещения от',
+                ),
+                Property(
+                    displayName='next_lesson_date_to',
+                    name=Parameters.next_lesson_date_to,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата след.посещения до',
+                ),
+                Property(
+                    displayName='tariff_till_from',
+                    name=Parameters.tariff_till_from,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата действия абонемента от',
+                ),
+                Property(
+                    displayName='tariff_till_to',
+                    name=Parameters.tariff_till_to,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата действия абонемента до',
+                ),
+                Property(
+                    displayName='customer_reject_id',
+                    name=Parameters.customer_reject_id,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='id причины отказа',
+                ),
+                Property(
+                    displayName='comment',
+                    name=Parameters.comment,
+                    type=Property.Type.STRING,
+                    default='',
+                    description='комментарий',
+                ),
+                Property(
+                    displayName='dob_from',
+                    name=Parameters.dob_from,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата рождения от',
+                ),
+                Property(
+                    displayName='dob_to',
+                    name=Parameters.dob_to,
+                    type=Property.Type.DATE,
+                    default='',
+                    description='дата рождения до',
+                ),
+                Property(
+                    displayName='withGroups:true',
+                    name=Parameters.withGroups_true,
+                    type=Property.Type.STRING,
+                    default='',
+                    description='активные группы клиента',
+                ),
+                Property(
+                    displayName='page',
+                    name=Parameters.page,
+                    type=Property.Type.NUMBER,
+                    default='',
+                    description='страница для пагинации',
+                ),
+            ]   
+        ),
     ]
 
 
@@ -53,20 +453,65 @@ class InfoView(info.Info):
 class ExecuteView(execute.Execute):
     async def post(self, json: NodeRunContext) -> NodeRunContext:
         try:
-            try:
-                number1 = int(json.node.data.properties['text_field'])
-            except ValueError:
-                raise ValueError('В первом поле должно быть число в формате строки, допустимые символы 1234567890')
-            number2 = json.node.data.properties['number_field']
-            number_sum = number1 + number2
-            
-            if not json.node.data.properties['switch']:
-                number_sum = str(number_sum)
+            node_action = json.node.data.properties['node_action']
 
-            await json.save_result({
-                "result": number_sum
-            })
-            json.state = RunState.complete
+            if node_action == NodeAction.auth:
+                hostname = json.node.data.properties['hostname']
+                email = json.node.data.properties['email']
+                api_key = json.node.data.properties['api_key']
+                branch = json.node.data.properties['branch']
+
+                url = f'https://{hostname}/v2api/{URL_LOGIN}'
+
+                headers = {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                        }
+            
+                auth_data = {"email" : email,"api_key" : api_key}
+
+                auth_request = Request(
+                    url=url,
+                    method=Request.Method.post,
+                    json=auth_data,
+                    headers=headers)
+            
+                auth_result = await auth_request.execute()
+
+                auth_result_data = auth_result.json()
+                token = auth_result_data['token']
+
+                await json.save_result({
+                    "token": token,
+                    "branch": branch,
+                    "hostname": hostname
+                    })
+                json.state = RunState.complete
+
+            if node_action == NodeAction.get_data:
+                token = json.node.data.properties['auth_result']['token']
+                branch = json.node.data.properties['auth_result']['branch']
+                hostname = json.node.data.properties['auth_result']['hostname']
+
+                headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-ALFACRM-TOKEN': token}
+
+                url = f'https://{hostname}/v2api/{branch}/{URL_CUSTOMER}'
+                data = Request(
+                    url=url,
+                    method=Request.Method.post,
+                    headers=headers)
+
+                result = await data.execute()
+
+                await json.save_result({
+                "result": result.json()
+                })
+
+                json.state = RunState.complete
+
         except Exception as e:
             self.log.warning(f'Error {e}')
             await json.save_error(str(e))
