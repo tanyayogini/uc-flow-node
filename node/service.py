@@ -10,18 +10,21 @@ from uc_flow_schemas.flow import Property, CredentialProtocol, RunState, Display
 from uc_http_requester.requester import Request
 from node.credential_type import CredentialType
 from node.enums import NodeAction, Resource, Operation, Parameters
+from node.parameters_converter import parameters_converter
 
 URL_LOGIN = 'auth/login'
-URL_CUSTOMER = 'customer/index'
+URL_GET_CUSTOMER = 'customer/index'
+URL_CREATE_CUSTOMER = 'customer/create'
+URL_UPDATE_CUSTOMER = 'customer/update'
 
 
 class NodeType(flow.NodeType):
-    id: str = '89490712-0453-44ac-bbf4-680ae7b26080'
+    id: str = '6f0f309e-5451-4a62-8a3a-7bca5404e6f8'
     type: flow.NodeType.Type = flow.NodeType.Type.action
-    name: str = 'My_alfacrm'
-    displayName: str = 'my_alfacrm'
+    name: str = 'My_alfacrm3'
+    displayName: str = 'my_alfacrm3'
     icon: str = '<svg><text x="8" y="50" font-size="50">🤖</text></svg>'
-    description: str = ''
+    description: str = 'alfacrm_node'
     properties: List[Property] = [
         Property(
             displayName='Действие кубика',
@@ -170,6 +173,8 @@ class NodeType(flow.NodeType):
                     ],
                     'operation': [
                         Operation.index_,
+                        Operation.create,
+                        Operation.update
                     ],
                 }
             ),
@@ -455,6 +460,7 @@ class ExecuteView(execute.Execute):
         try:
             node_action = json.node.data.properties['node_action']
 
+            # Авторизация
             if node_action == NodeAction.auth:
                 hostname = json.node.data.properties['hostname']
                 email = json.node.data.properties['email']
@@ -488,7 +494,9 @@ class ExecuteView(execute.Execute):
                     })
                 json.state = RunState.complete
 
+            # Получение данных
             if node_action == NodeAction.get_data:
+                customer_params = parameters_converter(json.node.data.properties['parameters'])
                 token = json.node.data.properties['auth_result']['token']
                 branch = json.node.data.properties['auth_result']['branch']
                 hostname = json.node.data.properties['auth_result']['hostname']
@@ -498,10 +506,23 @@ class ExecuteView(execute.Execute):
                 'Content-Type': 'application/json',
                 'X-ALFACRM-TOKEN': token}
 
-                url = f'https://{hostname}/v2api/{branch}/{URL_CUSTOMER}'
+                operation = json.node.data.properties['operation']
+
+                if operation == Operation.index_:
+                    url = f'https://{hostname}/v2api/{branch}/{URL_GET_CUSTOMER}'
+                
+                if operation == Operation.create:
+                    url = f'https://{hostname}/v2api/{branch}/{URL_CREATE_CUSTOMER}'
+                    customer_params["branch_ids"] = [branch]
+
+                if operation == Operation.update:
+                    id = customer_params.pop('id')
+                    url = f'https://{hostname}/v2api/{branch}/{URL_UPDATE_CUSTOMER}?id={id}'
+
                 data = Request(
                     url=url,
                     method=Request.Method.post,
+                    json=customer_params,
                     headers=headers)
 
                 result = await data.execute()

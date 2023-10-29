@@ -21,7 +21,7 @@ class Parameters(str, Enum):
     age_from = 'age_from'
     age_to = 'age_to'
     phone = 'phone'
-    legal_type = 'legal_typ'
+    legal_type = 'legal_type'
     legal_name = 'legal_name'
     company_id = 'company_id'
     lesson_count_from ='lesson_count_from'
