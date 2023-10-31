@@ -1,15 +1,6 @@
 import jwt
 import time
 
-def parameters_converter(parameters: dict) -> dict:
-    customer_parameters = {}
-
-    for param in parameters.values():
-        if len(param) > 0:
-            customer_parameters.update(param[0])
-    
-    return customer_parameters
-
 
 def generate_jwt(private_key_json):
     iat = time.time()
@@ -31,3 +22,20 @@ def generate_jwt(private_key_json):
     signed_jwt = jwt.encode(payload, private_key, headers=additional_headers, algorithm='RS256')
 
     return signed_jwt
+
+
+def get_request_body(boundary, file_content, metadata):
+    body = f"""
+--{boundary}
+Content-Type: application/json; charset=UTF-8
+
+{f'{metadata}'}
+
+--{boundary}
+Content-Type: text/plain
+
+{file_content}
+
+--{boundary}--
+"""
+    return body
