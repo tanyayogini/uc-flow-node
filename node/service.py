@@ -138,16 +138,14 @@ class ExecuteView(execute.Execute):
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {access_token}'}
 
-                url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=media'
+                url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart'
                 file_url = file_info["path"]
                 file_name = file_info["name"]
 
-                metadata = {"name": file_name,
-                            "mimeType": "text/csv",
-                            }
+                metadata = {"name": file_name}
 
                 data = {
-                    "metadata": ('metadata', f'{metadata}', 'application/json'),
+                    "metadata": (None, f'{metadata}', 'application/json'),
                     "file": (file_name, requests.get(file_url).content),
                     }
       
