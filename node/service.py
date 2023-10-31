@@ -133,9 +133,9 @@ class ExecuteView(execute.Execute):
                 access_token = json.node.data.properties['auth_result']['access_token']
                 file_info = json.node.data.properties['auth_result']['file_info']
 
+                boundary = '---boundary'
                 headers = {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
+                    'Content-Type': f"multipart/related; boundary={boundary}",
                     'Authorization': f'Bearer {access_token}'}
 
                 url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart'
@@ -144,16 +144,31 @@ class ExecuteView(execute.Execute):
 
                 metadata = {"name": file_name}
 
-                data = {
-                    "metadata": (None, f'{metadata}', 'application/json'),
-                    "file": (file_name, requests.get(file_url).content),
-                    }
-      
+                file_content_request = Request(
+                    url=file_url, 
+                    Method=Request.Method.get)
+                file_content_response = await file_content_request.execute()
+                file_content = file_content_response.content
+
+                body = f"""
+--{boundary}
+Content-Type: application/json; charset=UTF-8
+
+{f'{metadata}'}
+
+--{boundary}
+Content-Type: text/plain
+
+{file_content}
+
+--{boundary}--
+"""
+   
                 request = Request(
                     url=url,
                     method=Request.Method.post,
                     headers=headers,
-                    json=data
+                    data=body
                     )
             
                 result = await request.execute()
